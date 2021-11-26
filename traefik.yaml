@@ -1,0 +1,65 @@
+api:
+  insecure: true
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: false
+
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  myresolver:
+    acme:
+      email: felix.koppe@cavorit.de
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        # used during the challenge
+        entryPoint: web
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+  file:
+    filename: "/etc/traefik/traefik.yaml"
+
+# ## DYNAMIC CONFIGURATION
+http:
+  routers:
+    hostbackend:
+      rule: "Host(`dev.flxkpe.io`) && PathPrefix(`/graphql`)"
+      service: backend
+      priority: 1000
+      entryPoints:
+        - "websecure"
+      tls:
+        domains:
+          - dev.flxkpe.io
+        certresolver: myresolver
+    hostfrontend:
+      rule: "Host(`dev.flxkpe.io`) && PathPrefix(`/`)"
+      service: frontend
+      entryPoints:
+        - "websecure"
+      tls:
+        domains:
+          - dev.flxkpe.io
+        certresolver: myresolver
+
+  services:
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:3000"
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:4000"
